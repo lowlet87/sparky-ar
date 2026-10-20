@@ -10,7 +10,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
-<link rel="preload" href="assets/sparky.glb" as="fetch" type="model/gltf-binary" crossorigin>
 <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@4.0.0/dist/model-viewer.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js" defer></script>
 <style>
@@ -18,12 +17,11 @@
     --navy: #03204A;
     --peri: #6878FF;
     --sky: #EAF0FF;
-    --plume: #1F5BE8;
     --beak: #FF9A2E;
     --beak-deep: #E5791A;
     --ink-soft: #3C4C6E;
+    --line: rgba(3,32,74,0.10);
     --white: #FFFFFF;
-    --radius-l: 28px;
     --radius-pill: 999px;
     --safe-b: env(safe-area-inset-bottom, 0px);
   }
@@ -35,28 +33,31 @@
     color: var(--navy);
     background: var(--sky);
     -webkit-font-smoothing: antialiased;
-    overflow: hidden;
   }
-  .app { position: relative; height: 100svh; display: grid; grid-template-columns: 1fr; }
 
-  /* the stage: Sparky gets the whole screen */
+  /* phones: Sparky gets his own stage, the text and buttons sit below it (never on top of him) */
+  .app {
+    min-height: 100svh; display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(300px, 1fr) auto;
+    grid-template-areas: "stage" "controls";
+  }
+  .stage {
+    grid-area: stage; position: relative; min-height: 0;
+    background: radial-gradient(110% 80% at 50% 55%, #FFFFFF 0%, #F3F6FF 40%, var(--sky) 78%);
+  }
   model-viewer {
-    width: 100%; height: 100%;
-    background:
-      radial-gradient(120% 70% at 50% 58%, #FFFFFF 0%, #F3F6FF 38%, var(--sky) 70%, #D9E2FF 100%);
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    background: transparent;
     --poster-color: transparent;
     --progress-bar-color: transparent;
     outline: none;
   }
   model-viewer:focus-visible { box-shadow: inset 0 0 0 3px var(--peri); }
 
-  .brand {
-    position: absolute; top: max(16px, env(safe-area-inset-top)); left: 20px; z-index: 3;
-    display: block; width: 104px;
-  }
+  .brand { position: absolute; top: max(16px, env(safe-area-inset-top)); left: 20px; z-index: 3; display: block; width: 104px; }
   .brand img { display: block; width: 100%; height: auto; }
 
-  /* loading: a thin periwinkle line that fills along the top */
   .progress {
     position: absolute; top: 0; left: 0; right: 0; height: 3px; z-index: 4;
     background: rgba(104,120,255,0.15); transition: opacity .4s ease;
@@ -64,35 +65,50 @@
   .progress > span { display: block; height: 100%; width: 0; background: var(--peri); transition: width .2s ease; }
   .progress.done { opacity: 0; }
 
-  /* the overlay sits inside model-viewer, so it stays on screen in Android AR as well */
-  .overlay {
-    position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
-    padding: 0 20px calc(20px + var(--safe-b));
-    display: grid; gap: 14px; pointer-events: none;
+  .stage-msg {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 1;
+    margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-soft); text-align: center;
+    max-width: 28ch; line-height: 1.5;
   }
-  .overlay > * { pointer-events: auto; }
-  .hello h1 {
-    margin: 0; font-weight: 700; font-size: clamp(30px, 8vw, 44px); line-height: 1.05; letter-spacing: -0.02em;
+  .stage[data-state="ready"] .stage-msg { display: none; }
+
+  .controls {
+    grid-area: controls; display: grid; gap: 14px;
+    padding: 16px 20px calc(20px + var(--safe-b));
   }
-  .hello p { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-soft); max-width: 34ch; }
-  model-viewer[ar-status="session-started"] .hello,
-  model-viewer[ar-status="object-placed"] .hello { display: none; }
+  .hello h1 { margin: 0; font-weight: 700; font-size: clamp(28px, 7.4vw, 40px); line-height: 1.05; letter-spacing: -0.02em; }
+  .hello p { margin: 6px 0 0; font-size: 15px; line-height: 1.5; color: var(--ink-soft); max-width: 36ch; }
+
+  /* how Sparky behaves in AR: a two-way switch */
+  .mode {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px;
+    background: rgba(3,32,74,0.06); border-radius: var(--radius-pill);
+  }
+  .mode button {
+    font: inherit; font-size: 14px; font-weight: 600; color: var(--ink-soft);
+    background: transparent; border: 0; border-radius: var(--radius-pill);
+    min-height: 44px; padding: 0 10px; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    transition: background-color .18s ease, color .18s ease;
+  }
+  .mode button svg { width: 18px; height: 18px; flex: none; }
+  .mode button[aria-checked="true"] { background: var(--navy); color: var(--white); }
+  .mode button[aria-checked="false"]:hover { color: var(--navy); }
 
   .actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
   .act {
-    font: inherit; font-weight: 600; color: var(--navy);
-    background: var(--white);
-    border: 1.5px solid rgba(3,32,74,0.10); border-radius: var(--radius-pill);
-    padding: 10px 6px; min-height: 64px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-    font-size: 14px; line-height: 1.2; text-align: center;
-    cursor: pointer; transition: transform .12s ease;
+    font: inherit; font-weight: 600; font-size: 14px; line-height: 1.2; color: var(--navy);
+    background: var(--white); border: 1.5px solid var(--line); border-radius: 22px;
+    padding: 10px 6px; min-height: 64px; cursor: pointer; text-align: center;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+    transition: transform .12s ease;
   }
   .act svg { width: 22px; height: 22px; flex: none; }
   .act:hover { border-color: rgba(104,120,255,0.55); }
   .act:active { transform: scale(0.96); }
   .act:disabled { opacity: 0.45; cursor: default; }
   .act[aria-pressed="true"] { background: var(--navy); color: var(--white); border-color: var(--navy); }
-  .act:focus-visible, .place:focus-visible, .qr-toggle:focus-visible { outline: 3px solid var(--peri); outline-offset: 3px; }
+  .still-note { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ink-soft); }
 
   .place {
     font: inherit; font-weight: 700; font-size: 17px; color: var(--navy);
@@ -105,100 +121,104 @@
   .place:hover { background: #FFA640; }
   .place:active { transform: scale(0.98); background: var(--beak-deep); }
   .place svg { width: 22px; height: 22px; }
-  .hint { margin: -4px 0 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
-  model-viewer[ar-status="session-started"] :is(.hint, .place, .noar),
-  model-viewer[ar-status="object-placed"] :is(.hint, .place, .noar) { display: none !important; }
-
-  /* while the model downloads, and if it can't */
-  .stage-msg {
-    position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 1;
-    margin: 0; font-size: 15px; font-weight: 600; color: var(--ink-soft); text-align: center;
-    max-width: 28ch; line-height: 1.5;
-  }
-  model-viewer[data-state="ready"] .stage-msg { display: none; }
-
+  .hint { margin: -4px 0 0; font-size: 13px; line-height: 1.45; color: var(--ink-soft); text-align: center; }
   .noar { display: none; font-size: 14px; line-height: 1.5; color: var(--ink-soft); margin: 0; }
   .noar strong { color: var(--navy); font-weight: 600; }
-
-  /* in AR: a short instruction while the phone looks for a surface */
-  .ar-tip {
-    display: none; justify-self: center; font-size: 14px; font-weight: 600; color: var(--white);
-    background: rgba(3,32,74,0.78); padding: 10px 16px; border-radius: var(--radius-pill);
-  }
-  model-viewer[ar-status="session-started"] .ar-tip { display: block; }
+  .act:focus-visible, .place:focus-visible, .mode button:focus-visible { outline: 3px solid var(--peri); outline-offset: 2px; }
 
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-  /* desktop: Sparky on the left, a quiet panel with the QR code on the right */
+  /* short phones: trim the intro so the stage keeps most of the screen */
+  @media (max-height: 700px) {
+    .hello p { display: none; }
+    .act { min-height: 54px; }
+  }
+
+  /* desktop: Sparky and his buttons on the left, the QR code on the right */
   .panel { display: none; }
   @media (min-width: 960px) and (hover: hover) {
-    .app { grid-template-columns: minmax(0, 1fr) 400px; }
+    .app {
+      height: 100vh; min-height: 0;
+      grid-template-columns: minmax(0, 1fr) 400px;
+      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-areas: "stage panel" "controls panel";
+    }
+    .controls { padding: 0 32px 28px; max-width: 620px; width: 100%; justify-self: center; }
+    .controls .hello, .place, .hint, .noar { display: none !important; }
     .panel {
-      display: flex; flex-direction: column; justify-content: center; gap: 22px;
+      grid-area: panel; display: flex; flex-direction: column; justify-content: center; gap: 22px;
       padding: 48px 44px; background: var(--white); border-left: 1px solid rgba(3,32,74,0.06);
     }
     .panel h2 { margin: 0; font-size: 28px; line-height: 1.15; letter-spacing: -0.015em; font-weight: 700; }
     .panel p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
-    .qr {
-      width: 208px; height: 208px; padding: 14px; border-radius: 22px; background: var(--white);
-      border: 1.5px solid rgba(3,32,74,0.10); display: grid; place-items: center;
-    }
-    .qr canvas, .qr img { width: 100%; height: 100%; image-rendering: pixelated; }
-    .overlay { max-width: 560px; }
-    .overlay .hello { display: none; }
-    .place, .hint { display: none; }
+    .qr { width: 208px; height: 208px; padding: 14px; border-radius: 22px; background: var(--white); border: 1.5px solid var(--line); display: grid; place-items: center; }
   }
   @media (prefers-reduced-motion: reduce) {
-    .act, .place { transition: none; }
+    .act, .place, .mode button { transition: none; }
   }
 </style>
 </head>
 <body>
 <div class="app">
-  <model-viewer id="sparky"
-    src="assets/sparky.glb" ios-src="assets/sparky.usdz"
-    alt="Sparky, the SWiFT Office mascot: a round blue swift in aviator goggles, hovering above a white plinth with the SWiFT logo"
-    ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto" ar-placement="floor"
-    camera-controls touch-action="pan-y" interaction-prompt="none"
-    camera-orbit="-18deg 80deg 118%" min-camera-orbit="auto 38deg auto" max-camera-orbit="auto 96deg auto"
-    field-of-view="26deg" camera-target="0m 0.15m 0m"
-    autoplay animation-name="1_Hover" animation-crossfade-duration="350"
-    environment-image="neutral" tone-mapping="neutral" exposure="1.08"
-    shadow-intensity="1" shadow-softness="0.75" loading="eager" reveal="auto">
-
-    <div class="progress" slot="progress-bar"><span></span></div>
-    <span slot="ar-button" class="sr-only" aria-hidden="true"></span><!-- replaces the built-in AR icon; our own button is below -->
-
-    <div class="overlay">
-      <span class="ar-tip">Point at a table or the floor, then move your phone slowly</span>
-      <div class="hello">
-        <h1>Hi, I'm Sparky.</h1>
-        <p>SWiFT's crew member. Tap me to say hi, then put me on your desk.</p>
-      </div>
-      <div class="actions" role="group" aria-label="Make Sparky move">
-        <button class="act" type="button" data-clip="2_Wave" aria-pressed="false" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11.5V6.8a1.4 1.4 0 0 1 2.8 0v4"/><path d="M9.8 10.3V5.4a1.4 1.4 0 0 1 2.8 0v5"/><path d="M12.6 10.4V6.2a1.4 1.4 0 0 1 2.8 0v5.2"/><path d="M15.4 11.4V8.7a1.4 1.4 0 0 1 2.8 0v4.8c0 3.9-2.7 6.5-6.2 6.5-2.4 0-4-1.2-5.3-3.2l-2-3.2a1.4 1.4 0 0 1 2.3-1.6L7 13.4"/><path d="M19.5 3.5c.9.6 1.5 1.5 1.7 2.6M3.3 6.3c.1-1.1.7-2.1 1.6-2.7"/></svg>
-          Wave
-        </button>
-        <button class="act" type="button" data-clip="3_Cheer" aria-pressed="false" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 4 4.4.5-3.3 3 .9 4.3L12 13.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z"/><path d="M5 19.5l2-2M19 19.5l-2-2M12 21v-3"/></svg>
-          Cheer
-        </button>
-        <button class="act" type="button" data-clip="4_Spark" aria-pressed="false" disabled>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/><path d="M12 7.5l-1.2 2.6H13l-1.2 2.6"/></svg>
-          Spot an idea
-        </button>
-      </div>
-      <button class="place" type="button" id="place" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
-        Place Sparky in your space
-      </button>
-      <p class="hint" id="hint" hidden>Works in your phone's camera. No app needed.</p>
-      <p class="noar" id="noar"><strong>AR isn't available in this browser.</strong> Open this page in Chrome on Android or Safari on iPhone to place Sparky in your space.</p>
-    </div>
+  <section class="stage" id="stage" aria-label="Sparky in 3D">
+    <model-viewer id="sparky"
+      src="assets/sparky.glb" ios-src="assets/sparky.usdz"
+      alt="Sparky, the SWiFT Office mascot: a round blue swift in aviator goggles, above a white plinth with the SWiFT logo"
+      ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto" ar-placement="floor"
+      camera-controls touch-action="pan-y" interaction-prompt="none"
+      camera-orbit="-18deg 80deg auto" min-camera-orbit="auto 38deg auto" max-camera-orbit="auto 96deg auto"
+      field-of-view="auto" camera-target="auto auto auto"
+      autoplay animation-name="5_Hover" animation-crossfade-duration="350"
+      environment-image="neutral" tone-mapping="neutral" exposure="1.08"
+      shadow-intensity="1" shadow-softness="0.75" loading="eager" reveal="auto">
+      <div class="progress" slot="progress-bar"><span></span></div>
+      <span slot="ar-button" class="sr-only" aria-hidden="true"></span><!-- hides the built-in AR icon; our own button is below -->
+    </model-viewer>
     <p class="stage-msg" id="stage-msg">Sparky is on his way…</p>
+    <a class="brand" href="./" aria-label="SWiFT"><img src="assets/swift-logo.png" alt="SWiFT" width="480" height="206"></a>
+  </section>
+
+  <section class="controls">
+    <div class="hello">
+      <h1>Hi, I'm Sparky.</h1>
+      <p>SWiFT's crew member. Pick how I'll behave, then put me on your desk.</p>
+    </div>
+
+    <div class="mode" role="radiogroup" aria-label="How Sparky behaves in your space">
+      <button type="button" role="radio" aria-checked="true" data-mode="show">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 4 4.4.5-3.3 3 .9 4.3L12 13.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z"/><path d="M5 19.5l2-2M19 19.5l-2-2M12 21v-3"/></svg>
+        Put on a show
+      </button>
+      <button type="button" role="radio" aria-checked="false" data-mode="still">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7h2l1.4-2h6.2L16.5 7h2A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="12.8" r="3.4"/></svg>
+        Pose for photos
+      </button>
+    </div>
+
+    <div class="actions" id="actions" role="group" aria-label="Make Sparky move">
+      <button class="act" type="button" data-clip="2_Wave" aria-pressed="false" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11.5V6.8a1.4 1.4 0 0 1 2.8 0v4"/><path d="M9.8 10.3V5.4a1.4 1.4 0 0 1 2.8 0v5"/><path d="M12.6 10.4V6.2a1.4 1.4 0 0 1 2.8 0v5.2"/><path d="M15.4 11.4V8.7a1.4 1.4 0 0 1 2.8 0v4.8c0 3.9-2.7 6.5-6.2 6.5-2.4 0-4-1.2-5.3-3.2l-2-3.2a1.4 1.4 0 0 1 2.3-1.6L7 13.4"/><path d="M19.5 3.5c.9.6 1.5 1.5 1.7 2.6M3.3 6.3c.1-1.1.7-2.1 1.6-2.7"/></svg>
+        Wave
+      </button>
+      <button class="act" type="button" data-clip="3_Cheer" aria-pressed="false" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 4 4.4.5-3.3 3 .9 4.3L12 13.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z"/><path d="M5 19.5l2-2M19 19.5l-2-2M12 21v-3"/></svg>
+        Cheer
+      </button>
+      <button class="act" type="button" data-clip="4_Spark" aria-pressed="false" disabled>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/><path d="M12 7.5l-1.2 2.6H13l-1.2 2.6"/></svg>
+        Spot an idea
+      </button>
+    </div>
+    <p class="still-note" id="still-note" hidden>Sparky stands on his plinth and waves, without moving, so you can line up the perfect shot.</p>
+
+    <button class="place" type="button" id="place" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg>
+      Place Sparky in your space
+    </button>
+    <p class="hint" id="hint" hidden></p>
+    <p class="noar" id="noar"><strong>AR isn't available in this browser.</strong> Open this page in Chrome on Android or Safari on iPhone to place Sparky in your space.</p>
     <p class="sr-only" aria-live="polite" id="status"></p>
-  </model-viewer>
+  </section>
 
   <aside class="panel" aria-label="Open on your phone">
     <h2>Hi, I'm Sparky.</h2>
@@ -208,95 +228,51 @@
   </aside>
 </div>
 
-<a class="brand" href="./" aria-label="SWiFT"><img src="assets/swift-logo.png" alt="SWiFT" width="480" height="206"></a>
-
 <script type="module">
-  const mv = document.getElementById('sparky');
-  const status = document.getElementById('status');
-  const buttons = [...document.querySelectorAll('.act')];
-  const IDLE = "1_Hover";
-  const LABEL = { "2_Wave": "Sparky waves", "3_Cheer": "Sparky cheers", "4_Spark": "Sparky spots an idea" };
-  let playing = null;
-
-  // loading bar
-  const bar = mv.querySelector('.progress');
-  mv.addEventListener('progress', (e) => {
-    bar.firstElementChild.style.width = `${Math.round(e.detail.totalProgress * 100)}%`;
-    if (e.detail.totalProgress >= 1) bar.classList.add('done');
-  });
-
-  function setPressed(clip) {
-    buttons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.clip === clip)));
-  }
-
-  let backstop = 0, startedAt = 0;
-  function play(clip) {
-    if (!mv.loaded || playing === clip) return;
-    playing = clip;
-    setPressed(clip);
-    mv.animationName = clip;
-    mv.currentTime = 0;
-    startedAt = performance.now();
-    mv.play({ repetitions: 1 });
-    status.textContent = LABEL[clip] || '';
-    if (navigator.vibrate && navigator.userActivation?.isActive) navigator.vibrate(12);
-    // back to hovering when the clip ends ("finished", or "loop" if the viewer repeats it);
-    // the timer is a backstop in case neither event arrives
-    clearTimeout(backstop);
-    backstop = setTimeout(() => { if (playing === clip) idle(); }, 3600);
-  }
-
-  function idle() {
-    clearTimeout(backstop);
-    playing = null;
-    setPressed(null);
-    mv.animationName = IDLE;
-    mv.play();                     // loops
-  }
-
-  mv.addEventListener("finished", () => { if (playing) idle(); });
-  mv.addEventListener("loop", () => { if (playing && performance.now() - startedAt > 2000) idle(); });
-  buttons.forEach((b) => b.addEventListener('click', () => play(b.dataset.clip)));
-
-  // tap Sparky (not a drag) for a surprise reaction
-  let down = null;
-  mv.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
-  mv.addEventListener('pointerup', (e) => {
-    if (!down || e.target.closest('button, a')) return;
-    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
-    const quick = performance.now() - down.t < 350;
-    down = null;
-    if (moved > 8 || !quick || playing) return;
-    const hit = mv.positionAndNormalFromPoint(e.clientX, e.clientY);
-    if (!hit) return;
-    const pool = ["2_Wave", "3_Cheer", "4_Spark"].filter((c) => c !== mv.dataset.last);
-    const pick = pool[Math.floor(Math.random() * pool.length)];
-    mv.dataset.last = pick;
-    play(pick);
-  });
-
+  const mv = document.getElementById("sparky");
+  const stage = document.getElementById("stage");
+  const status = document.getElementById("status");
+  const buttons = [...document.querySelectorAll(".act")];
+  const modeButtons = [...document.querySelectorAll(".mode button")];
   const place = document.getElementById("place");
-  place.addEventListener("click", () => mv.activateAR());
+  const MODES = {
+    show:  { src: "assets/sparky.glb",       ios: "assets/sparky.usdz",       idle: "5_Hover",
+             status: "Sparky will put on a show" },
+    still: { src: "assets/sparky_still.glb", ios: "assets/sparky_still.usdz", idle: "1_Still",
+             status: "Sparky will pose for photos" },
+  };
+  const LABEL = { "2_Wave": "Sparky waves", "3_Cheer": "Sparky cheers", "4_Spark": "Sparky spots an idea" };
+  let mode = "show", playing = null, backstop = 0, startedAt = 0, everLoaded = false;
 
-  // phones (portrait): frame Sparky in the upper part of the screen so the text sits below the plinth
-  function frame() {
-    const portrait = innerHeight > innerWidth * 1.15;
-    mv.cameraTarget = portrait ? "0m 0.04m 0m" : "0m 0.15m 0m";
-    mv.cameraOrbit = portrait ? "-18deg 78deg 160%" : "-18deg 80deg 118%";
-  }
-  frame();
-  addEventListener("resize", frame);
-
+  // ------------------------------------------------------------------ loading
+  const bar = mv.querySelector(".progress");
+  mv.addEventListener("progress", (e) => {
+    bar.classList.remove("done");
+    bar.firstElementChild.style.width = `${Math.round(e.detail.totalProgress * 100)}%`;
+    if (e.detail.totalProgress >= 1) bar.classList.add("done");
+  });
   mv.addEventListener("error", () => {
     document.getElementById("stage-msg").textContent =
       "Sparky couldn't load. Check your connection, then refresh the page.";
   });
 
-  function ready() {
-    if (mv.dataset.state === "ready") return;
-    mv.dataset.state = "ready";
-    buttons.forEach((b) => (b.disabled = false));
+  // the viewer's "load" event can arrive before this script, or be held back in a background tab,
+  // so poll the loaded flag after every model change as well as listening for it
+  let poll = 0;
+  function whenLoaded() {
+    clearInterval(poll);
+    poll = setInterval(() => { if (mv.loaded) { clearInterval(poll); onModelReady(); } }, 200);
+  }
+  mv.addEventListener("load", () => { clearInterval(poll); onModelReady(); });
+
+  function onModelReady() {
+    stage.dataset.state = "ready";
+    buttons.forEach((b) => (b.disabled = mode !== "show"));
     idle();
+    if (!everLoaded) { everLoaded = true; firstReady(); }
+  }
+
+  function firstReady() {
     if (mv.canActivateAR) {
       place.hidden = false;
       const hint = document.getElementById("hint");
@@ -309,31 +285,108 @@
       document.getElementById("noar").style.display = "block";
     }
   }
-  // a cached model can finish loading before this script runs, so check as well as listen
-  mv.addEventListener("load", ready);
-  customElements.whenDefined("model-viewer").then(() => {
-    const check = setInterval(() => { if (mv.loaded) { clearInterval(check); ready(); } }, 250);
-  });
 
-  mv.addEventListener('ar-status', (e) => {
-    if (e.detail.status === 'failed') {
-      status.textContent = 'AR could not start. Try again, or open the page in Chrome or Safari.';
+  // ------------------------------------------------------------------ show / still
+  function setMode(next, announce = true) {
+    if (!MODES[next]) next = "show";
+    const changed = next !== mode;
+    mode = next;
+    modeButtons.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
+    document.getElementById("actions").hidden = mode !== "show";
+    document.getElementById("still-note").hidden = mode !== "still";
+    try { localStorage.setItem("sparky-mode", mode); } catch (e) { /* storage blocked: fine */ }
+    if (changed) {
+      playing = null; clearTimeout(backstop); setPressed(null);
+      buttons.forEach((b) => (b.disabled = true));
+      mv.src = MODES[mode].src;
+      mv.iosSrc = MODES[mode].ios;
+      whenLoaded();
     }
+    if (announce) status.textContent = MODES[mode].status;
+  }
+  modeButtons.forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  // arrow keys move between the two options, as in any radio group
+  document.querySelector(".mode").addEventListener("keydown", (e) => {
+    if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
+    e.preventDefault();
+    const next = mode === "show" ? "still" : "show";
+    setMode(next);
+    modeButtons.find((b) => b.dataset.mode === next).focus();
   });
 
-  // QR code for desktop visitors
+  // ------------------------------------------------------------------ animation
+  function setPressed(clip) {
+    buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.clip === clip)));
+  }
+  function play(clip) {
+    if (!mv.loaded || mode !== "show" || playing === clip) return;
+    playing = clip;
+    setPressed(clip);
+    mv.animationName = clip;
+    mv.currentTime = 0;
+    startedAt = performance.now();
+    mv.play({ repetitions: 1 });
+    status.textContent = LABEL[clip] || "";
+    if (navigator.vibrate && navigator.userActivation?.isActive) navigator.vibrate(12);
+    clearTimeout(backstop);                       // back to idle even if no end event arrives
+    backstop = setTimeout(() => { if (playing === clip) idle(); }, 3600);
+  }
+  function idle() {
+    clearTimeout(backstop);
+    playing = null;
+    setPressed(null);
+    mv.animationName = MODES[mode].idle;
+    mv.play();
+  }
+  mv.addEventListener("finished", () => { if (playing) idle(); });
+  mv.addEventListener("loop", () => { if (playing && performance.now() - startedAt > 2000) idle(); });
+  buttons.forEach((b) => b.addEventListener("click", () => play(b.dataset.clip)));
+
+  // tap Sparky (not a drag) for a surprise reaction
+  let down = null;
+  mv.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+  mv.addEventListener("pointerup", (e) => {
+    if (!down) return;
+    const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
+    const quick = performance.now() - down.t < 350;
+    down = null;
+    if (moved > 8 || !quick || playing || mode !== "show") return;
+    if (!mv.positionAndNormalFromPoint(e.clientX, e.clientY)) return;
+    const pool = ["2_Wave", "3_Cheer", "4_Spark"].filter((c) => c !== mv.dataset.last);
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    mv.dataset.last = pick;
+    play(pick);
+  });
+
+  place.addEventListener("click", () => mv.activateAR());
+  mv.addEventListener("ar-status", (e) => {
+    if (e.detail.status === "failed") status.textContent = "AR could not start. Try again, or open the page in Chrome or Safari.";
+  });
+
+  // ------------------------------------------------------------------ start
+  // ?mode=still in the link opens straight into photo mode (handy for event QR codes)
+  let start = new URLSearchParams(location.search).get("mode");
+  if (!MODES[start]) { try { start = localStorage.getItem("sparky-mode"); } catch (e) { start = null; } }
+  setMode(MODES[start] ? start : "show", false);
+  customElements.whenDefined("model-viewer").then(whenLoaded);
+
+  // QR code for desktop visitors (keeps the chosen mode)
   function drawQR() {
-    const el = document.getElementById('qr');
-    if (!el || !window.qrcode || !getComputedStyle(el.parentElement).display.includes('flex')) return;
-    const q = qrcode(0, 'M');
-    q.addData(location.href.split('#')[0]);
+    const el = document.getElementById("qr");
+    if (!el || !window.qrcode || getComputedStyle(el.parentElement).display === "none") return;
+    const url = new URL(location.href.split("#")[0]);
+    url.searchParams.delete("mode");
+    if (mode === "still") url.searchParams.set("mode", "still");
+    const q = qrcode(0, "M");
+    q.addData(url.toString());
     q.make();
     el.innerHTML = q.createSvgTag({ cellSize: 6, margin: 0, scalable: true });
-    const svg = el.querySelector('svg');
-    if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; svg.querySelectorAll('path').forEach(p => p.setAttribute('fill', '#03204A')); }
+    const svg = el.querySelector("svg");
+    if (svg) { svg.style.width = "100%"; svg.style.height = "100%"; svg.querySelectorAll("path").forEach((p) => p.setAttribute("fill", "#03204A")); }
   }
-  window.addEventListener('load', drawQR);
-  matchMedia('(min-width: 960px)').addEventListener('change', drawQR);
+  window.addEventListener("load", drawQR);
+  matchMedia("(min-width: 960px)").addEventListener("change", drawQR);
+  modeButtons.forEach((b) => b.addEventListener("click", drawQR));
 </script>
 </body>
 </html>
