@@ -158,11 +158,11 @@
   <model-viewer id="sparky"
     src="assets/sparky.glb" ios-src="assets/sparky.usdz"
     alt="Sparky, the SWiFT Office mascot: a round blue swift in aviator goggles, hovering above a white plinth with the SWiFT logo"
-    ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto" ar-placement="floor"
+    ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto" ar-placement="floor"
     camera-controls touch-action="pan-y" interaction-prompt="none"
     camera-orbit="-18deg 80deg 118%" min-camera-orbit="auto 38deg auto" max-camera-orbit="auto 96deg auto"
     field-of-view="26deg" camera-target="0m 0.15m 0m"
-    autoplay animation-name="Hover" animation-crossfade-duration="350"
+    autoplay animation-name="1_Hover" animation-crossfade-duration="350"
     environment-image="neutral" tone-mapping="neutral" exposure="1.08"
     shadow-intensity="1" shadow-softness="0.75" loading="eager" reveal="auto">
 
@@ -173,18 +173,18 @@
       <span class="ar-tip">Point at a table or the floor, then move your phone slowly</span>
       <div class="hello">
         <h1>Hi, I'm Sparky.</h1>
-        <p>SWiFT's crew member. Put me on your desk, then tap me to say hi.</p>
+        <p>SWiFT's crew member. Tap me to say hi, then put me on your desk.</p>
       </div>
       <div class="actions" role="group" aria-label="Make Sparky move">
-        <button class="act" type="button" data-clip="Wave" aria-pressed="false" disabled>
+        <button class="act" type="button" data-clip="2_Wave" aria-pressed="false" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 11.5V6.8a1.4 1.4 0 0 1 2.8 0v4"/><path d="M9.8 10.3V5.4a1.4 1.4 0 0 1 2.8 0v5"/><path d="M12.6 10.4V6.2a1.4 1.4 0 0 1 2.8 0v5.2"/><path d="M15.4 11.4V8.7a1.4 1.4 0 0 1 2.8 0v4.8c0 3.9-2.7 6.5-6.2 6.5-2.4 0-4-1.2-5.3-3.2l-2-3.2a1.4 1.4 0 0 1 2.3-1.6L7 13.4"/><path d="M19.5 3.5c.9.6 1.5 1.5 1.7 2.6M3.3 6.3c.1-1.1.7-2.1 1.6-2.7"/></svg>
           Wave
         </button>
-        <button class="act" type="button" data-clip="Cheer" aria-pressed="false" disabled>
+        <button class="act" type="button" data-clip="3_Cheer" aria-pressed="false" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l1.9 4 4.4.5-3.3 3 .9 4.3L12 13.1l-3.9 2.2.9-4.3-3.3-3 4.4-.5z"/><path d="M5 19.5l2-2M19 19.5l-2-2M12 21v-3"/></svg>
           Cheer
         </button>
-        <button class="act" type="button" data-clip="Spark" aria-pressed="false" disabled>
+        <button class="act" type="button" data-clip="4_Spark" aria-pressed="false" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.6 10.8c.6.5 1 1.2 1 2V16h5.2v-.2c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z"/><path d="M12 7.5l-1.2 2.6H13l-1.2 2.6"/></svg>
           Spot an idea
         </button>
@@ -214,8 +214,8 @@
   const mv = document.getElementById('sparky');
   const status = document.getElementById('status');
   const buttons = [...document.querySelectorAll('.act')];
-  const IDLE = 'Hover';
-  const LABEL = { Wave: 'Sparky waves', Cheer: 'Sparky cheers', Spark: 'Sparky spots an idea' };
+  const IDLE = "1_Hover";
+  const LABEL = { "2_Wave": "Sparky waves", "3_Cheer": "Sparky cheers", "4_Spark": "Sparky spots an idea" };
   let playing = null;
 
   // loading bar
@@ -269,7 +269,7 @@
     if (moved > 8 || !quick || playing) return;
     const hit = mv.positionAndNormalFromPoint(e.clientX, e.clientY);
     if (!hit) return;
-    const pool = ['Wave', 'Cheer', 'Spark'].filter((c) => c !== mv.dataset.last);
+    const pool = ["2_Wave", "3_Cheer", "4_Spark"].filter((c) => c !== mv.dataset.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     mv.dataset.last = pick;
     play(pick);
@@ -298,7 +298,13 @@
     buttons.forEach((b) => (b.disabled = false));
     idle();
     if (mv.canActivateAR) {
-      place.hidden = false; document.getElementById("hint").hidden = false;
+      place.hidden = false;
+      const hint = document.getElementById("hint");
+      const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      hint.textContent = ios
+        ? "Opens in your camera. Tap the shutter button to take a photo with Sparky."
+        : "Opens in your camera. Take a screenshot to keep a photo with Sparky.";
+      hint.hidden = false;
     } else if (matchMedia("(hover: none)").matches) {
       document.getElementById("noar").style.display = "block";
     }
