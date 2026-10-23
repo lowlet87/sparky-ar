@@ -153,8 +153,80 @@
     .panel p { margin: 0; font-size: 15px; line-height: 1.6; color: var(--ink-soft); }
     .qr { width: 208px; height: 208px; padding: 14px; border-radius: 22px; background: var(--white); border: 1.5px solid var(--line); display: grid; place-items: center; }
   }
+  /* saved AR photos/videos, offered on the page after leaving AR */
+  .shots {
+    font: inherit; font-weight: 600; font-size: 15px; color: var(--navy);
+    background: var(--white); border: 1.5px solid var(--line); border-radius: var(--radius-pill);
+    min-height: 48px; padding: 0 20px; width: 100%; cursor: pointer;
+  }
+
+  /* ---------------------------------------------------------------- controls inside Chrome's AR view
+     They live inside <model-viewer>, which Chrome keeps on screen during AR. Hidden otherwise. */
+  .ar-ui { display: none; }
+  model-viewer[ar-status="session-started"] .ar-ui {
+    display: block; position: absolute; inset: 0; pointer-events: none; z-index: 10;
+    font-family: "Sora", system-ui, sans-serif; color: var(--white);
+  }
+  .ar-ui button { pointer-events: auto; font: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .ar-glass { background: rgba(3,32,74,0.55); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+  .ar-ui > *:not(.ar-toast) { transition: opacity .25s ease; }
+  .ar-ui.clean > *:not(.ar-toast) { opacity: 0; pointer-events: none; }
+  .ar-ui.clean button { pointer-events: none; }
+
+  .ar-mode {
+    position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 2px); right: 16px;
+    display: flex; gap: 2px; padding: 3px; border-radius: var(--radius-pill);
+  }
+  .ar-mode button {
+    font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85);
+    background: transparent; border: 0; border-radius: var(--radius-pill); min-height: 40px; padding: 0 16px;
+  }
+  .ar-mode button[aria-checked="true"] { background: var(--white); color: var(--navy); }
+
+  .ar-bottom {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 0 16px calc(18px + var(--safe-b)); display: grid; gap: 18px; justify-items: center;
+  }
+  .ar-acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+  .ar-act {
+    font-size: 14px; font-weight: 600; color: var(--white); border: 0; border-radius: var(--radius-pill);
+    min-height: 44px; padding: 0 18px;
+  }
+  .ar-act:disabled { opacity: 0.5; }
+  .ar-act[aria-pressed="true"] { background: var(--white); color: var(--navy); }
+
+  .ar-shoot { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; width: 100%; max-width: 360px; }
+  .ar-shoot .l { justify-self: start; } .ar-shoot .r { justify-self: end; }
+  .ar-shutter {
+    width: 76px; height: 76px; border-radius: 50%; border: 4px solid var(--white);
+    background: rgba(255,255,255,0.25); padding: 0; position: relative;
+  }
+  .ar-shutter::after { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: var(--white); transition: transform .12s ease; }
+  .ar-shutter:active::after { transform: scale(0.88); }
+  .ar-thumb { width: 52px; height: 52px; border-radius: 14px; border: 2px solid var(--white); padding: 0; overflow: hidden; background: #000; }
+  .ar-thumb img, .ar-thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ar-rec {
+    min-width: 52px; height: 52px; border-radius: var(--radius-pill); border: 0; color: var(--white);
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 16px;
+    font-size: 14px; font-weight: 600;
+  }
+  .ar-rec span { width: 18px; height: 18px; border-radius: 50%; background: #FF3B30; transition: border-radius .15s ease; }
+  .ar-rec b { font-weight: 600; display: none; }
+  .ar-rec[aria-pressed="true"] span { border-radius: 4px; }
+  .ar-rec[aria-pressed="true"] b { display: inline; }
+
+  .ar-toast {
+    position: absolute; left: 50%; top: calc(max(16px, env(safe-area-inset-top)) + 64px); transform: translateX(-50%);
+    margin: 0; padding: 10px 16px; border-radius: 16px; max-width: min(88vw, 340px);
+    font-size: 14px; font-weight: 600; line-height: 1.4; text-align: center;
+  }
+  .ar-flash { position: absolute; inset: 0; background: var(--white); opacity: 0; pointer-events: none; }
+  .ar-flash.on { animation: arflash .35s ease-out; }
+  @keyframes arflash { from { opacity: 0.85; } to { opacity: 0; } }
+
   @media (prefers-reduced-motion: reduce) {
     .act, .place, .mode button { transition: none; }
+    .ar-flash.on { animation: none; }
   }
 </style>
 </head>
@@ -173,6 +245,28 @@
       shadow-intensity="1" shadow-softness="0.75" loading="eager" reveal="auto">
       <div class="progress" slot="progress-bar"><span></span></div>
       <span slot="ar-button" class="sr-only" aria-hidden="true"></span><!-- hides the built-in AR icon; our own button is below -->
+
+      <!-- shown only inside Chrome's AR view (Android) -->
+      <div class="ar-ui" id="ar-ui">
+        <div class="ar-flash" id="ar-flash"></div>
+        <div class="ar-mode ar-glass" role="radiogroup" aria-label="How Sparky behaves">
+          <button type="button" role="radio" aria-checked="true" data-mode="show">Show</button>
+          <button type="button" role="radio" aria-checked="false" data-mode="still">Pose</button>
+        </div>
+        <div class="ar-bottom">
+          <div class="ar-acts" id="ar-acts" role="group" aria-label="Make Sparky move">
+            <button class="ar-act ar-glass" type="button" data-clip="2_Wave" aria-pressed="false" disabled>Wave</button>
+            <button class="ar-act ar-glass" type="button" data-clip="3_Cheer" aria-pressed="false" disabled>Cheer</button>
+            <button class="ar-act ar-glass" type="button" data-clip="4_Spark" aria-pressed="false" disabled>Spot an idea</button>
+          </div>
+          <div class="ar-shoot">
+            <div class="l"><button class="ar-thumb" id="ar-thumb" type="button" aria-label="Save or share your last shot" hidden></button></div>
+            <button class="ar-shutter" id="ar-shutter" type="button" aria-label="Take a photo"></button>
+            <div class="r"><button class="ar-rec ar-glass" id="ar-rec" type="button" aria-label="Record a video" aria-pressed="false" hidden><span></span><b id="ar-rec-time">0:00</b></button></div>
+          </div>
+        </div>
+        <p class="ar-toast ar-glass" id="ar-toast" role="status" hidden></p>
+      </div>
     </model-viewer>
     <p class="stage-msg" id="stage-msg">Sparky is on his way…</p>
     <a class="brand" href="./" aria-label="SWiFT"><img src="assets/swift-logo.png" alt="SWiFT" width="480" height="206"></a>
@@ -216,6 +310,7 @@
       Place Sparky in your space
     </button>
     <p class="hint" id="hint" hidden></p>
+    <button class="shots" type="button" id="shots" hidden>Save your photos</button>
     <p class="noar" id="noar"><strong>AR isn't available in this browser.</strong> Open this page in Chrome on Android or Safari on iPhone to place Sparky in your space.</p>
     <p class="sr-only" aria-live="polite" id="status"></p>
   </section>
@@ -232,8 +327,9 @@
   const mv = document.getElementById("sparky");
   const stage = document.getElementById("stage");
   const status = document.getElementById("status");
-  const buttons = [...document.querySelectorAll(".act")];
-  const modeButtons = [...document.querySelectorAll(".mode button")];
+  // each control exists twice: on the page, and inside the AR view
+  const buttons = [...document.querySelectorAll("[data-clip]")];
+  const modeButtons = [...document.querySelectorAll("[data-mode]")];
   const place = document.getElementById("place");
   const MODES = {
     show:  { src: "assets/sparky.glb",       ios: "assets/sparky.usdz",       idle: "5_Hover", ar: "1_Show",
@@ -242,7 +338,7 @@
              status: "Sparky will pose for photos" },
   };
   const LABEL = { "2_Wave": "Sparky waves", "3_Cheer": "Sparky cheers", "4_Spark": "Sparky spots an idea" };
-  let mode = "show", playing = null, backstop = 0, startedAt = 0, everLoaded = false;
+  let mode = "show", playing = null, backstop = 0, startedAt = 0, everLoaded = false, inAR = false;
 
   // ------------------------------------------------------------------ loading
   const bar = mv.querySelector(".progress");
@@ -279,7 +375,7 @@
       const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       hint.textContent = ios
         ? "Opens in your camera. Tap the shutter button to take a photo with Sparky."
-        : "Opens in your camera. Take a screenshot to keep a photo with Sparky.";
+        : "Opens in your camera, with buttons to make Sparky move and to take photos and videos.";
       hint.hidden = false;
     } else if (matchMedia("(hover: none)").matches) {
       document.getElementById("noar").style.display = "block";
@@ -293,6 +389,7 @@
     mode = next;
     modeButtons.forEach((b) => b.setAttribute("aria-checked", String(b.dataset.mode === mode)));
     document.getElementById("actions").hidden = mode !== "show";
+    document.getElementById("ar-acts").hidden = mode !== "show";
     document.getElementById("still-note").hidden = mode !== "still";
     try { localStorage.setItem("sparky-mode", mode); } catch (e) { /* storage blocked: fine */ }
     if (changed) {
@@ -311,7 +408,7 @@
     e.preventDefault();
     const next = mode === "show" ? "still" : "show";
     setMode(next);
-    modeButtons.find((b) => b.dataset.mode === next).focus();
+    document.querySelector(`.mode [data-mode="${next}"]`).focus();
   });
 
   // ------------------------------------------------------------------ animation
@@ -319,7 +416,7 @@
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.clip === clip)));
   }
   function play(clip) {
-    if (!mv.loaded || mode !== "show" || playing === clip || inAR) return;
+    if (!mv.loaded || mode !== "show" || playing === clip) return;
     playing = clip;
     setPressed(clip);
     mv.animationName = clip;
@@ -335,7 +432,9 @@
     clearTimeout(backstop);
     playing = null;
     setPressed(null);
-    mv.animationName = MODES[mode].idle;
+    // in AR the resting clip is the full show (or the still pose); on the page it's the gentle hover
+    mv.animationName = inAR ? MODES[mode].ar : MODES[mode].idle;
+    mv.currentTime = 0;
     mv.play();
   }
   mv.addEventListener("finished", () => { if (playing) idle(); });
@@ -346,7 +445,7 @@
   let down = null;
   mv.addEventListener("pointerdown", (e) => { down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
   mv.addEventListener("pointerup", (e) => {
-    if (!down) return;
+    if (!down || inAR) return;
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y);
     const quick = performance.now() - down.t < 350;
     down = null;
@@ -359,19 +458,294 @@
   });
 
   place.addEventListener("click", () => mv.activateAR());
-  // Android uses Chrome's own AR (WebXR), which plays whatever clip the page has set,
-  // so play the full show (or the still pose) while in AR, then go back to the page idle
-  let inAR = false;
+  // Android uses Chrome's own AR (WebXR). It plays whatever clip the page sets, and keeps the
+  // controls inside <model-viewer> on screen, so the AR view gets its own buttons and camera.
   mv.addEventListener("ar-status", (e) => {
     const s = e.detail.status;
     if (s === "session-started") {
-      inAR = true; playing = null; clearTimeout(backstop); setPressed(null);
-      mv.animationName = MODES[mode].ar; mv.currentTime = 0; mv.play();
+      inAR = true;
+      idle();
+      setupCaptureUI();
     } else if (s === "not-presenting" && inAR) {
-      inAR = false; idle();
+      inAR = false;
+      stopRecording();
+      idle();
+      offerShots();
     }
     if (s === "failed") status.textContent = "AR could not start. Try again, or open the page in Chrome or Safari.";
   });
+
+  // ------------------------------------------------------------------ photos and videos in AR
+  // Chrome only shares the camera picture with the page if the AR session asks for "camera-access".
+  // model-viewer doesn't ask, so add it to the request, and note the WebGL context the AR view draws
+  // with. A photo is then: the camera picture with Sparky's rendered frame laid over it.
+  // If the phone doesn't grant it, the shutter hides the buttons for a clean screenshot instead.
+  const ui = document.getElementById("ar-ui");
+  const shutter = document.getElementById("ar-shutter");
+  const recBtn = document.getElementById("ar-rec");
+  const thumb = document.getElementById("ar-thumb");
+  const toastEl = document.getElementById("ar-toast");
+  const cap = { gl: null, session: null, refSpace: null, binding: null, res: null, usable: false };
+  const shots = [];
+
+  try {
+    if (navigator.xr && navigator.xr.requestSession) {
+      const request = navigator.xr.requestSession.bind(navigator.xr);
+      navigator.xr.requestSession = (kind, init = {}) => {
+        if (kind !== "immersive-ar") return request(kind, init);
+        const opt = [...(init.optionalFeatures || []), "camera-access"];
+        return request(kind, { ...init, optionalFeatures: opt }).then((session) => {
+          cap.session = session; cap.binding = null; cap.refSpace = null;
+          session.requestReferenceSpace("viewer").then((r) => (cap.refSpace = r)).catch(() => {});
+          session.addEventListener("end", () => { stopRecording(); cap.session = null; cap.binding = null; cap.refSpace = null; });
+          return session;
+        });
+      };
+    }
+    for (const name of ["XRWebGLLayer", "XRWebGLBinding"]) {
+      const Real = window[name];
+      if (!Real) continue;
+      window[name] = new Proxy(Real, { construct(target, args) { cap.gl = args[1]; return Reflect.construct(target, args); } });
+    }
+  } catch (err) { console.warn("Sparky: AR camera capture unavailable", err); }
+
+  // keep taps on our AR buttons from also moving Sparky around
+  ui.addEventListener("beforexrselect", (e) => e.preventDefault());
+
+  const VMIME = ["video/mp4;codecs=avc1", "video/mp4", "video/webm;codecs=vp9", "video/webm"]
+    .find((t) => window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t));
+
+  function setupCaptureUI() {
+    const s = cap.session;
+    cap.usable = !!(s && cap.gl && s.renderState.baseLayer && window.XRWebGLBinding &&
+      "getCameraImage" in XRWebGLBinding.prototype &&
+      (!s.enabledFeatures || s.enabledFeatures.includes("camera-access")));
+    recBtn.hidden = !(cap.usable && VMIME && HTMLCanvasElement.prototype.captureStream);
+    shutter.setAttribute("aria-label", cap.usable ? "Take a photo" : "Hide the buttons for a screenshot");
+    ui.classList.remove("clean");
+  }
+
+  let toastTimer = 0;
+  function toast(text, ms = 2600) {
+    toastEl.textContent = text; toastEl.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (toastEl.hidden = true), ms);
+  }
+
+  let cleanTimer = 0;
+  function cleanView(text = "Buttons hidden for 6 seconds. Take a screenshot now.") {
+    toast(text, 1800);
+    clearTimeout(cleanTimer);
+    setTimeout(() => ui.classList.add("clean"), 1900);
+    cleanTimer = setTimeout(() => ui.classList.remove("clean"), 7900);
+  }
+
+  // --- WebGL: lay Sparky's frame over the camera picture, at up to maxSide pixels
+  const VS = `#version 300 es
+    out vec2 uv;
+    void main() { vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2); uv = p; gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0); }`;
+  // drawn upside down so readPixels (bottom row first) comes out top row first
+  const FS = `#version 300 es
+    precision mediump float;
+    in vec2 uv; uniform sampler2D cam; uniform sampler2D model; out vec4 color;
+    void main() {
+      vec2 st = vec2(uv.x, 1.0 - uv.y);
+      vec4 m = texture(model, st);
+      color = vec4(m.rgb + texture(cam, st).rgb * (1.0 - m.a), 1.0);
+    }`;
+  const CAPS = (gl) => [gl.BLEND, gl.DEPTH_TEST, gl.CULL_FACE, gl.STENCIL_TEST, gl.SCISSOR_TEST];
+
+  function setupGL(gl) {
+    const shader = (type, src) => {
+      const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+      if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+      return s;
+    };
+    const p = gl.createProgram();
+    gl.attachShader(p, shader(gl.VERTEX_SHADER, VS));
+    gl.attachShader(p, shader(gl.FRAGMENT_SHADER, FS));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return { p, uCam: gl.getUniformLocation(p, "cam"), uModel: gl.getUniformLocation(p, "model"),
+             vao: gl.createVertexArray(), texM: gl.createTexture(), fbM: gl.createFramebuffer(),
+             texO: gl.createTexture(), fbO: gl.createFramebuffer(), mw: 0, mh: 0, ow: 0, oh: 0, buf: null };
+  }
+  function sizeTarget(gl, tex, fb, w, h) {
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+  }
+  // the AR view's renderer keeps its own record of GL state, so put back everything we touch
+  function saveGL(gl) {
+    const active = gl.getParameter(gl.ACTIVE_TEXTURE);
+    const tex = [0, 1].map((i) => { gl.activeTexture(gl.TEXTURE0 + i); return gl.getParameter(gl.TEXTURE_BINDING_2D); });
+    return { active, tex,
+      draw: gl.getParameter(gl.DRAW_FRAMEBUFFER_BINDING), read: gl.getParameter(gl.READ_FRAMEBUFFER_BINDING),
+      vp: gl.getParameter(gl.VIEWPORT), prog: gl.getParameter(gl.CURRENT_PROGRAM), vao: gl.getParameter(gl.VERTEX_ARRAY_BINDING),
+      caps: CAPS(gl).map((c) => gl.isEnabled(c)), mask: gl.getParameter(gl.COLOR_WRITEMASK),
+      pack: gl.getParameter(gl.PIXEL_PACK_BUFFER_BINDING), unpack: gl.getParameter(gl.PIXEL_UNPACK_BUFFER_BINDING) };
+  }
+  function restoreGL(gl, s) {
+    s.tex.forEach((t, i) => { gl.activeTexture(gl.TEXTURE0 + i); gl.bindTexture(gl.TEXTURE_2D, t); });
+    gl.activeTexture(s.active);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, s.draw); gl.bindFramebuffer(gl.READ_FRAMEBUFFER, s.read);
+    gl.viewport(s.vp[0], s.vp[1], s.vp[2], s.vp[3]);
+    gl.useProgram(s.prog); gl.bindVertexArray(s.vao);
+    CAPS(gl).forEach((c, i) => (s.caps[i] ? gl.enable(c) : gl.disable(c)));
+    gl.colorMask(s.mask[0], s.mask[1], s.mask[2], s.mask[3]);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, s.pack); gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, s.unpack);
+  }
+
+  // call only inside an AR frame callback; returns { w, h, data } (data is reused, copy it to keep it)
+  function grab(frame, maxSide) {
+    const gl = cap.gl, session = cap.session, layer = session && session.renderState.baseLayer;
+    if (!gl || !layer || !cap.refSpace) return null;
+    const pose = frame.getViewerPose(cap.refSpace);
+    const view = pose && pose.views[0];
+    if (!view || !view.camera) return null;
+    if (!cap.binding) cap.binding = new XRWebGLBinding(session, gl);
+    const camTex = cap.binding.getCameraImage(view.camera);
+    if (!camTex) return null;
+    const W = layer.framebufferWidth, H = layer.framebufferHeight;
+    const k = Math.min(1, maxSide / Math.max(W, H));
+    const ow = Math.round((W * k) / 2) * 2, oh = Math.round((H * k) / 2) * 2;
+    gl.getError();
+    const saved = saveGL(gl);
+    try {
+      const r = cap.res || (cap.res = setupGL(gl));
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null); gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, null);
+      gl.activeTexture(gl.TEXTURE0);
+      if (r.mw !== W || r.mh !== H) { sizeTarget(gl, r.texM, r.fbM, W, H); r.mw = W; r.mh = H; }
+      if (r.ow !== ow || r.oh !== oh) { sizeTarget(gl, r.texO, r.fbO, ow, oh); r.ow = ow; r.oh = oh; r.buf = new Uint8Array(ow * oh * 4); }
+      CAPS(gl).forEach((c) => gl.disable(c));
+      gl.colorMask(true, true, true, true);
+      // copy the frame the AR view just drew of Sparky (blit also resolves anti-aliasing)
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, layer.framebuffer);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, r.fbM);
+      gl.blitFramebuffer(0, 0, W, H, 0, 0, W, H, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      // camera picture + Sparky, into the output size
+      gl.bindFramebuffer(gl.FRAMEBUFFER, r.fbO);
+      gl.viewport(0, 0, ow, oh);
+      gl.useProgram(r.p); gl.bindVertexArray(r.vao);
+      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, camTex); gl.uniform1i(r.uCam, 0);
+      gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, r.texM); gl.uniform1i(r.uModel, 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.readPixels(0, 0, ow, oh, gl.RGBA, gl.UNSIGNED_BYTE, r.buf);
+      if (gl.getError() !== gl.NO_ERROR) return null;
+      return { w: ow, h: oh, data: r.buf };
+    } finally {
+      restoreGL(gl, saved);
+    }
+  }
+
+  function stamp() {
+    const d = new Date(), p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  }
+  function addShot(file) {
+    const url = URL.createObjectURL(file);
+    shots.push({ file, url });
+    thumb.replaceChildren();
+    const el = file.type.startsWith("video") ? Object.assign(document.createElement("video"), { muted: true, playsInline: true }) : new Image();
+    el.src = url; el.alt = "";
+    thumb.append(el);
+    thumb.hidden = false;
+  }
+  async function saveFiles(files) {
+    try {
+      if (navigator.canShare && navigator.canShare({ files })) { await navigator.share({ files }); return; }
+    } catch (err) { if (err.name === "AbortError") return; }
+    for (const f of files) {
+      const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(f), download: f.name });
+      document.body.append(a); a.click(); a.remove();
+    }
+  }
+  thumb.addEventListener("click", () => { const last = shots[shots.length - 1]; if (last) saveFiles([last.file]); });
+
+  const shotsBtn = document.getElementById("shots");
+  function offerShots() {
+    if (!shots.length) return;
+    const v = shots.filter((s) => s.file.type.startsWith("video")).length, p = shots.length - v;
+    const parts = [p && `${p} photo${p > 1 ? "s" : ""}`, v && `${v} video${v > 1 ? "s" : ""}`].filter(Boolean);
+    shotsBtn.textContent = `Save your ${parts.join(" and ")}`;
+    shotsBtn.hidden = false;
+  }
+  shotsBtn.addEventListener("click", () => saveFiles(shots.map((s) => s.file)));
+
+  function flash() {
+    const f = document.getElementById("ar-flash");
+    f.classList.remove("on"); void f.offsetWidth; f.classList.add("on");
+  }
+
+  shutter.addEventListener("click", () => {
+    if (!cap.usable || !cap.session) return cleanView();
+    cap.session.requestAnimationFrame((t, frame) => {
+      let img = null;
+      try { img = grab(frame, 2048); } catch (err) { console.warn("Sparky: photo failed", err); }
+      if (!img) {
+        cap.usable = false; setupCaptureUI();
+        return cleanView("Photos aren't available on this phone. Buttons hidden: take a screenshot now.");
+      }
+      flash();
+      const c = Object.assign(document.createElement("canvas"), { width: img.w, height: img.h });
+      c.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(img.data), img.w, img.h), 0, 0);
+      c.toBlob((b) => b && addShot(new File([b], `sparky-${stamp()}.jpg`, { type: "image/jpeg" })), "image/jpeg", 0.92);
+    });
+  });
+
+  // --- video: copy each AR frame into a canvas and record that, up to 30 s
+  const rec = { on: false, recorder: null, canvas: null, ctx: null, chunks: [], last: 0, t0: 0, timer: 0 };
+  function recFrame(t, frame) {
+    if (!rec.on || !cap.session) return;
+    cap.session.requestAnimationFrame(recFrame);
+    if (t - rec.last < 40) return;            // about 25 frames a second
+    rec.last = t;
+    let img = null;
+    try { img = grab(frame, 1280); } catch (err) { console.warn("Sparky: video frame failed", err); }
+    if (!img) return;
+    if (!rec.recorder) {
+      rec.canvas = Object.assign(document.createElement("canvas"), { width: img.w, height: img.h });
+      rec.ctx = rec.canvas.getContext("2d");
+      rec.ctx.putImageData(new ImageData(new Uint8ClampedArray(img.data.buffer), img.w, img.h), 0, 0);
+      rec.chunks = [];
+      rec.recorder = new MediaRecorder(rec.canvas.captureStream(25), { mimeType: VMIME, videoBitsPerSecond: 6e6 });
+      rec.recorder.ondataavailable = (e) => e.data.size && rec.chunks.push(e.data);
+      rec.recorder.onstop = () => {
+        const type = VMIME.split(";")[0];
+        if (rec.chunks.length) addShot(new File(rec.chunks, `sparky-${stamp()}.${type === "video/mp4" ? "mp4" : "webm"}`, { type }));
+        rec.recorder = null;
+      };
+      rec.recorder.start(1000);
+      rec.t0 = performance.now();
+      return;
+    }
+    rec.ctx.putImageData(new ImageData(new Uint8ClampedArray(img.data.buffer), img.w, img.h), 0, 0);
+  }
+  function startRecording() {
+    if (rec.on || !cap.usable || !cap.session) return;
+    rec.on = true; rec.last = 0;
+    recBtn.setAttribute("aria-pressed", "true"); recBtn.setAttribute("aria-label", "Stop recording");
+    const label = document.getElementById("ar-rec-time");
+    label.textContent = "0:00";
+    rec.timer = setInterval(() => {
+      if (!rec.recorder) return;
+      const s = Math.floor((performance.now() - rec.t0) / 1000);
+      label.textContent = `0:${String(s).padStart(2, "0")}`;
+      if (s >= 30) stopRecording();
+    }, 250);
+    cap.session.requestAnimationFrame(recFrame);
+  }
+  function stopRecording() {
+    if (!rec.on) return;
+    rec.on = false; clearInterval(rec.timer);
+    recBtn.setAttribute("aria-pressed", "false"); recBtn.setAttribute("aria-label", "Record a video");
+    if (rec.recorder && rec.recorder.state !== "inactive") rec.recorder.stop();
+  }
+  recBtn.addEventListener("click", () => (rec.on ? stopRecording() : startRecording()));
 
   // ------------------------------------------------------------------ start
   // ?mode=still in the link opens straight into photo mode (handy for event QR codes)
