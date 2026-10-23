@@ -164,7 +164,7 @@
     <model-viewer id="sparky"
       src="assets/sparky.glb" ios-src="assets/sparky.usdz"
       alt="Sparky, the SWiFT Office mascot: a round blue swift in aviator goggles, above a white plinth with the SWiFT logo"
-      ar ar-modes="scene-viewer quick-look webxr" ar-scale="auto" ar-placement="floor"
+      ar ar-modes="webxr scene-viewer quick-look" ar-scale="auto" ar-placement="floor"
       camera-controls touch-action="pan-y" interaction-prompt="none"
       camera-orbit="-18deg 80deg auto" min-camera-orbit="auto 38deg auto" max-camera-orbit="auto 96deg auto"
       field-of-view="auto" camera-target="auto auto auto"
@@ -236,9 +236,9 @@
   const modeButtons = [...document.querySelectorAll(".mode button")];
   const place = document.getElementById("place");
   const MODES = {
-    show:  { src: "assets/sparky.glb",       ios: "assets/sparky.usdz",       idle: "5_Hover",
+    show:  { src: "assets/sparky.glb",       ios: "assets/sparky.usdz",       idle: "5_Hover", ar: "1_Show",
              status: "Sparky will put on a show" },
-    still: { src: "assets/sparky_still.glb", ios: "assets/sparky_still.usdz", idle: "1_Still",
+    still: { src: "assets/sparky_still.glb", ios: "assets/sparky_still.usdz", idle: "1_Still", ar: "1_Still",
              status: "Sparky will pose for photos" },
   };
   const LABEL = { "2_Wave": "Sparky waves", "3_Cheer": "Sparky cheers", "4_Spark": "Sparky spots an idea" };
@@ -319,7 +319,7 @@
     buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.clip === clip)));
   }
   function play(clip) {
-    if (!mv.loaded || mode !== "show" || playing === clip) return;
+    if (!mv.loaded || mode !== "show" || playing === clip || inAR) return;
     playing = clip;
     setPressed(clip);
     mv.animationName = clip;
@@ -359,8 +359,18 @@
   });
 
   place.addEventListener("click", () => mv.activateAR());
+  // Android uses Chrome's own AR (WebXR), which plays whatever clip the page has set,
+  // so play the full show (or the still pose) while in AR, then go back to the page idle
+  let inAR = false;
   mv.addEventListener("ar-status", (e) => {
-    if (e.detail.status === "failed") status.textContent = "AR could not start. Try again, or open the page in Chrome or Safari.";
+    const s = e.detail.status;
+    if (s === "session-started") {
+      inAR = true; playing = null; clearTimeout(backstop); setPressed(null);
+      mv.animationName = MODES[mode].ar; mv.currentTime = 0; mv.play();
+    } else if (s === "not-presenting" && inAR) {
+      inAR = false; idle();
+    }
+    if (s === "failed") status.textContent = "AR could not start. Try again, or open the page in Chrome or Safari.";
   });
 
   // ------------------------------------------------------------------ start
